@@ -379,7 +379,7 @@ internal sealed class SettingsDialog : Form
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(620, 145);
+        ClientSize = new Size(660, 190);
 
         var root = new TableLayoutPanel
         {
@@ -390,7 +390,7 @@ internal sealed class SettingsDialog : Form
         };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
         Controls.Add(root);
 
         root.Controls.Add(CreateExportFolderRow(), 0, 0);
@@ -476,6 +476,7 @@ internal sealed class SettingsDialog : Form
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.RightToLeft,
+            MinimumSize = new Size(0, 44),
             Padding = new Padding(0, 8, 0, 0)
         };
 
