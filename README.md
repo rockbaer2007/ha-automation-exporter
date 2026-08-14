@@ -26,5 +26,4 @@ dotnet run --project .\HaAutomationExporter.csproj -- C:\Users\rockb\Downloads\a
 ## Requirements
 
 - Windows
-- .NET 10 SDK
-
+- .NET 9 SDK
