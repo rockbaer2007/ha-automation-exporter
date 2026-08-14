@@ -206,10 +206,21 @@ internal sealed class ExporterForm : Form
 
     private void SelectSourceFile()
     {
+        var sourcePath = sourceTextBox.Text.Trim();
+        var initialDirectory = File.Exists(sourcePath)
+            ? Path.GetDirectoryName(sourcePath)
+            : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
         using var dialog = new OpenFileDialog
         {
+            CheckFileExists = true,
+            FileName = File.Exists(sourcePath) ? Path.GetFileName(sourcePath) : "automations.yaml",
             Filter = "YAML-Dateien (*.yaml;*.yml)|*.yaml;*.yml|Alle Dateien (*.*)|*.*",
-            FileName = string.IsNullOrWhiteSpace(sourceTextBox.Text) ? "automations.yaml" : sourceTextBox.Text
+            InitialDirectory = string.IsNullOrWhiteSpace(initialDirectory)
+                ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                : initialDirectory,
+            RestoreDirectory = true,
+            Title = "automations.yaml auswählen"
         };
 
         if (dialog.ShowDialog(this) == DialogResult.OK)
@@ -221,25 +232,21 @@ internal sealed class ExporterForm : Form
 
     private void SelectOutputFolder()
     {
-        using var dialog = new OpenFileDialog
+        using var dialog = new FolderBrowserDialog
         {
-            CheckFileExists = false,
-            FileName = "Ordner auswählen",
-            Filter = "Ordner|*.folder",
-            InitialDirectory = Directory.Exists(outputTextBox.Text)
+            Description = "Export-Ordner auswählen",
+            SelectedPath = Directory.Exists(outputTextBox.Text)
                 ? outputTextBox.Text
                 : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            Title = "Export-Ordner auswählen",
-            ValidateNames = false
+            ShowNewFolderButton = true,
+            UseDescriptionForTitle = true
         };
 
         if (dialog.ShowDialog(this) == DialogResult.OK)
         {
-            var selectedPath = Path.GetDirectoryName(dialog.FileName);
-
-            if (!string.IsNullOrWhiteSpace(selectedPath))
+            if (!string.IsNullOrWhiteSpace(dialog.SelectedPath))
             {
-                outputTextBox.Text = selectedPath;
+                outputTextBox.Text = dialog.SelectedPath;
             }
 
             SaveSettings(showMessage: false);
