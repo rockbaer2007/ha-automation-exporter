@@ -2,6 +2,8 @@
 
 Windows tool to export Home Assistant `automations.yaml` entries into separate YAML files.
 
+![Home Assistant Automation Exporter screenshot](docs/automations-exporter.png)
+
 ## Features
 
 - Open a Windows selection window without command-line arguments.
