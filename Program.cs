@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Globalization;
 using System.Windows.Forms;
 
 internal static class Program
@@ -24,14 +25,28 @@ internal sealed class ExporterForm : Form
     private readonly TextBox sourceTextBox = new();
     private readonly TextBox outputTextBox = new();
     private readonly DataGridView automationGrid = new();
+    private readonly Label sourcePathLabel = new();
+    private readonly Label outputPathLabel = new();
+    private readonly Label languageLabel = new();
     private readonly Label statusLabel = new();
+    private readonly Button sourceBrowseButton = new();
+    private readonly Button outputBrowseButton = new();
+    private readonly Button saveSettingsButton = new();
+    private readonly Button loadButton = new();
+    private readonly Button selectAllButton = new();
+    private readonly Button selectNoneButton = new();
     private readonly Button detailsButton = new();
     private readonly Button exportButton = new();
+    private readonly ComboBox languageComboBox = new();
+    private PortableSettings settings = PortableSettings.Load();
+    private bool isChangingLanguage;
     private List<AutomationEntry> automations = [];
 
     public ExporterForm()
     {
-        Text = "Home Assistant Automationen exportieren";
+        I18n.Use(settings.Language);
+
+        Text = I18n.T("AppTitle");
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(920, 560);
         Size = new Size(1060, 680);
@@ -46,7 +61,7 @@ internal sealed class ExporterForm : Form
             "automations-export-selected");
 
         sourceTextBox.Text = File.Exists(defaultSource) ? defaultSource : string.Empty;
-        outputTextBox.Text = PortableSettings.Load().ExportFolder;
+        outputTextBox.Text = settings.ExportFolder;
 
         if (string.IsNullOrWhiteSpace(outputTextBox.Text))
         {
@@ -57,20 +72,22 @@ internal sealed class ExporterForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 5,
             Padding = new Padding(12)
         };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         Controls.Add(root);
 
-        root.Controls.Add(CreatePathRow("automations.yaml", sourceTextBox, "Datei wählen...", SelectSourceFile), 0, 0);
-        root.Controls.Add(CreatePathRow("Export-Ordner", outputTextBox, "Ordner wählen...", SelectOutputFolder, () => SaveSettings()), 0, 1);
+        root.Controls.Add(CreatePathRow(sourcePathLabel, sourceTextBox, sourceBrowseButton, SelectSourceFile), 0, 0);
+        root.Controls.Add(CreatePathRow(outputPathLabel, outputTextBox, outputBrowseButton, SelectOutputFolder, saveSettingsButton), 0, 1);
+        root.Controls.Add(CreateLanguageRow(), 0, 2);
 
         ConfigureGrid();
-        root.Controls.Add(automationGrid, 0, 2);
+        root.Controls.Add(automationGrid, 0, 3);
 
         var footer = new TableLayoutPanel
         {
@@ -85,23 +102,21 @@ internal sealed class ExporterForm : Form
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        root.Controls.Add(footer, 0, 3);
+        root.Controls.Add(footer, 0, 4);
 
-        var loadButton = new Button { Text = "Laden", AutoSize = true };
+        loadButton.AutoSize = true;
         loadButton.Click += (_, _) => LoadAutomations();
 
-        var selectAllButton = new Button { Text = "Alle auswählen", AutoSize = true };
+        selectAllButton.AutoSize = true;
         selectAllButton.Click += (_, _) => SetAllChecked(true);
 
-        var selectNoneButton = new Button { Text = "Keine auswählen", AutoSize = true };
+        selectNoneButton.AutoSize = true;
         selectNoneButton.Click += (_, _) => SetAllChecked(false);
 
-        detailsButton.Text = "Details";
         detailsButton.AutoSize = true;
         detailsButton.Enabled = false;
         detailsButton.Click += (_, _) => ShowSelectedAutomationDetails();
 
-        exportButton.Text = "Ausgewählte exportieren";
         exportButton.AutoSize = true;
         exportButton.Enabled = false;
         exportButton.Click += (_, _) => ExportSelected();
@@ -116,58 +131,85 @@ internal sealed class ExporterForm : Form
         footer.Controls.Add(selectNoneButton, 4, 0);
         footer.Controls.Add(exportButton, 5, 0);
 
+        ApplyUiText();
+
         if (!string.IsNullOrWhiteSpace(sourceTextBox.Text))
         {
             Load += (_, _) => LoadAutomations();
         }
     }
 
-    private static Control CreatePathRow(
-        string labelText,
+    private Control CreatePathRow(
+        Label label,
         TextBox textBox,
-        string buttonText,
+        Button button,
         Action browseAction,
-        Action? saveAction = null)
+        Button? saveButton = null)
     {
         var panel = new TableLayoutPanel
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
-            ColumnCount = saveAction is null ? 3 : 4,
+            ColumnCount = saveButton is null ? 3 : 4,
             Padding = new Padding(0, 0, 0, 8)
         };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        if (saveAction is not null)
+        if (saveButton is not null)
         {
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         }
 
-        var label = new Label
-        {
-            Text = labelText,
-            AutoSize = true,
-            Anchor = AnchorStyles.Left,
-            TextAlign = ContentAlignment.MiddleLeft
-        };
+        label.AutoSize = true;
+        label.Anchor = AnchorStyles.Left;
+        label.TextAlign = ContentAlignment.MiddleLeft;
 
         textBox.Dock = DockStyle.Fill;
 
-        var button = new Button { Text = buttonText, AutoSize = true };
+        button.AutoSize = true;
         button.Click += (_, _) => browseAction();
 
         panel.Controls.Add(label, 0, 0);
         panel.Controls.Add(textBox, 1, 0);
         panel.Controls.Add(button, 2, 0);
 
-        if (saveAction is not null)
+        if (saveButton is not null)
         {
-            var saveButton = new Button { Text = "Einstellung speichern", AutoSize = true };
-            saveButton.Click += (_, _) => saveAction();
+            saveButton.AutoSize = true;
+            saveButton.Click += (_, _) => SaveSettings();
             panel.Controls.Add(saveButton, 3, 0);
         }
 
+        return panel;
+    }
+
+    private Control CreateLanguageRow()
+    {
+        var panel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            ColumnCount = 3,
+            Padding = new Padding(0, 0, 0, 8)
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        languageLabel.AutoSize = true;
+        languageLabel.Anchor = AnchorStyles.Left;
+        languageLabel.TextAlign = ContentAlignment.MiddleLeft;
+
+        languageComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+        languageComboBox.Width = 220;
+        languageComboBox.DisplayMember = nameof(LanguageChoice.DisplayName);
+        languageComboBox.ValueMember = nameof(LanguageChoice.Key);
+        RefreshLanguageChoices(settings.Language);
+        languageComboBox.SelectedValueChanged += (_, _) => ChangeLanguage();
+
+        panel.Controls.Add(languageLabel, 0, 0);
+        panel.Controls.Add(languageComboBox, 1, 0);
         return panel;
     }
 
@@ -202,22 +244,73 @@ internal sealed class ExporterForm : Form
         });
         automationGrid.Columns.Add(new DataGridViewTextBoxColumn
         {
-            HeaderText = "Alias",
             ReadOnly = true,
             FillWeight = 42
         });
         automationGrid.Columns.Add(new DataGridViewTextBoxColumn
         {
-            HeaderText = "ID",
             ReadOnly = true,
             FillWeight = 22
         });
         automationGrid.Columns.Add(new DataGridViewTextBoxColumn
         {
-            HeaderText = "Dateiname",
             ReadOnly = true,
             FillWeight = 36
         });
+    }
+
+    private void ApplyUiText()
+    {
+        Text = I18n.T("AppTitle");
+        sourcePathLabel.Text = I18n.T("SourceFileLabel");
+        outputPathLabel.Text = I18n.T("ExportFolderLabel");
+        languageLabel.Text = I18n.T("LanguageLabel");
+        sourceBrowseButton.Text = I18n.T("ChooseFileButton");
+        outputBrowseButton.Text = I18n.T("ChooseFolderButton");
+        saveSettingsButton.Text = I18n.T("SaveSettingButton");
+        loadButton.Text = I18n.T("LoadButton");
+        selectAllButton.Text = I18n.T("SelectAllButton");
+        selectNoneButton.Text = I18n.T("SelectNoneButton");
+        detailsButton.Text = I18n.T("DetailsButton");
+        exportButton.Text = I18n.T("ExportSelectedButton");
+
+        automationGrid.Columns[1].HeaderText = I18n.T("AliasColumn");
+        automationGrid.Columns[2].HeaderText = I18n.T("IdColumn");
+        automationGrid.Columns[3].HeaderText = I18n.T("FileNameColumn");
+    }
+
+    private void ChangeLanguage()
+    {
+        if (isChangingLanguage)
+        {
+            return;
+        }
+
+        if (languageComboBox.SelectedValue is not string language)
+        {
+            return;
+        }
+
+        settings = settings with { Language = language };
+        I18n.Use(language);
+        RefreshLanguageChoices(language);
+        ApplyUiText();
+        SaveSettings(showMessage: false);
+        statusLabel.Text = I18n.T("SettingSavedStatus");
+    }
+
+    private void RefreshLanguageChoices(string selectedLanguage)
+    {
+        isChangingLanguage = true;
+        try
+        {
+            languageComboBox.DataSource = I18n.GetLanguageChoices().ToList();
+            languageComboBox.SelectedValue = selectedLanguage;
+        }
+        finally
+        {
+            isChangingLanguage = false;
+        }
     }
 
     private void SelectSourceFile()
@@ -231,12 +324,12 @@ internal sealed class ExporterForm : Form
         {
             CheckFileExists = true,
             FileName = File.Exists(sourcePath) ? Path.GetFileName(sourcePath) : "automations.yaml",
-            Filter = "YAML-Dateien (*.yaml;*.yml)|*.yaml;*.yml|Alle Dateien (*.*)|*.*",
+            Filter = I18n.T("YamlFileFilter"),
             InitialDirectory = string.IsNullOrWhiteSpace(initialDirectory)
                 ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
                 : initialDirectory,
             RestoreDirectory = true,
-            Title = "automations.yaml auswählen"
+            Title = I18n.T("SelectSourceTitle")
         };
 
         if (dialog.ShowDialog(this) == DialogResult.OK)
@@ -250,7 +343,7 @@ internal sealed class ExporterForm : Form
     {
         using var dialog = new FolderBrowserDialog
         {
-            Description = "Export-Ordner auswählen",
+            Description = I18n.T("SelectOutputTitle"),
             SelectedPath = Directory.Exists(outputTextBox.Text)
                 ? outputTextBox.Text
                 : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -284,14 +377,14 @@ internal sealed class ExporterForm : Form
 
             exportButton.Enabled = automations.Count > 0;
             UpdateDetailsButtonState();
-            statusLabel.Text = $"{automations.Count} Automation(en) geladen.";
+            statusLabel.Text = I18n.Format("LoadedStatus", automations.Count);
         }
         catch (Exception exception)
         {
             exportButton.Enabled = false;
             detailsButton.Enabled = false;
-            statusLabel.Text = "Laden fehlgeschlagen.";
-            MessageBox.Show(this, exception.Message, "Fehler beim Laden", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            statusLabel.Text = I18n.T("LoadFailedStatus");
+            MessageBox.Show(this, exception.Message, I18n.T("LoadErrorTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -304,7 +397,7 @@ internal sealed class ExporterForm : Form
     {
         if (automationGrid.CurrentRow?.Tag is not AutomationEntry automation)
         {
-            MessageBox.Show(this, "Bitte zuerst eine Automation auswählen.", "Keine Automation ausgewählt", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, I18n.T("SelectAutomationMessage"), I18n.T("NoAutomationSelectedTitle"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -332,7 +425,7 @@ internal sealed class ExporterForm : Form
 
         if (selected.Count == 0)
         {
-            MessageBox.Show(this, "Bitte mindestens eine Automation auswählen.", "Nichts ausgewählt", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, I18n.T("SelectAtLeastOneMessage"), I18n.T("NothingSelectedTitle"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -340,18 +433,18 @@ internal sealed class ExporterForm : Form
         {
             var exported = AutomationExporter.Export(selected, outputTextBox.Text).ToList();
             SaveSettings(showMessage: false);
-            statusLabel.Text = $"{exported.Count} Automation(en) exportiert.";
+            statusLabel.Text = I18n.Format("ExportedStatus", exported.Count);
             MessageBox.Show(
                 this,
-                $"{exported.Count} Automation(en) exportiert nach:{Environment.NewLine}{Path.GetFullPath(outputTextBox.Text)}",
-                "Export abgeschlossen",
+                I18n.Format("ExportCompletedMessage", exported.Count, Environment.NewLine, Path.GetFullPath(outputTextBox.Text)),
+                I18n.T("ExportCompletedTitle"),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         }
         catch (Exception exception)
         {
-            statusLabel.Text = "Export fehlgeschlagen.";
-            MessageBox.Show(this, exception.Message, "Fehler beim Export", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            statusLabel.Text = I18n.T("ExportFailedStatus");
+            MessageBox.Show(this, exception.Message, I18n.T("ExportErrorTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -359,23 +452,24 @@ internal sealed class ExporterForm : Form
     {
         try
         {
-            PortableSettings.Save(new PortableSettings(outputTextBox.Text.Trim()));
-            statusLabel.Text = "Einstellung gespeichert.";
+            settings = settings with { ExportFolder = outputTextBox.Text.Trim() };
+            PortableSettings.Save(settings);
+            statusLabel.Text = I18n.T("SettingSavedStatus");
 
             if (showMessage)
             {
-                MessageBox.Show(this, "Export-Ordner wurde neben der EXE gespeichert.", "Einstellung gespeichert", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, I18n.T("SettingSavedMessage"), I18n.T("SettingSavedTitle"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
         catch (Exception exception)
         {
-            statusLabel.Text = "Speichern fehlgeschlagen.";
-            MessageBox.Show(this, exception.Message, "Fehler beim Speichern", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            statusLabel.Text = I18n.T("SaveFailedStatus");
+            MessageBox.Show(this, exception.Message, I18n.T("SaveErrorTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 }
 
-internal sealed record PortableSettings(string ExportFolder)
+internal sealed record PortableSettings(string ExportFolder = "", string Language = I18n.SystemLanguageKey)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -388,17 +482,17 @@ internal sealed record PortableSettings(string ExportFolder)
     {
         if (!File.Exists(SettingsFile))
         {
-            return new PortableSettings(string.Empty);
+            return new PortableSettings();
         }
 
         try
         {
             var json = File.ReadAllText(SettingsFile, Encoding.UTF8);
-            return JsonSerializer.Deserialize<PortableSettings>(json, JsonOptions) ?? new PortableSettings(string.Empty);
+            return JsonSerializer.Deserialize<PortableSettings>(json, JsonOptions) ?? new PortableSettings();
         }
         catch
         {
-            return new PortableSettings(string.Empty);
+            return new PortableSettings();
         }
     }
 
@@ -409,11 +503,437 @@ internal sealed record PortableSettings(string ExportFolder)
     }
 }
 
+internal static class I18n
+{
+    public const string SystemLanguageKey = "system";
+
+    private static readonly Dictionary<string, string> SystemLanguageMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["de"] = "de",
+        ["en"] = "en",
+        ["fr"] = "fr",
+        ["es"] = "es",
+        ["pl"] = "pl",
+        ["ru"] = "ru"
+    };
+
+    private static readonly Dictionary<string, Dictionary<string, string>> Translations = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["en"] = new()
+        {
+            ["LanguageSystem"] = "System",
+            ["LanguageGerman"] = "German",
+            ["LanguageEnglish"] = "English",
+            ["LanguageFrench"] = "French",
+            ["LanguageSpanish"] = "Spanish",
+            ["LanguagePolish"] = "Polish",
+            ["LanguageRussian"] = "Russian",
+            ["AppTitle"] = "Export Home Assistant Automations",
+            ["SourceFileLabel"] = "automations.yaml",
+            ["ExportFolderLabel"] = "Export folder",
+            ["LanguageLabel"] = "Language",
+            ["ChooseFileButton"] = "Choose file...",
+            ["ChooseFolderButton"] = "Choose folder...",
+            ["SaveSettingButton"] = "Save setting",
+            ["LoadButton"] = "Load",
+            ["SelectAllButton"] = "Select all",
+            ["SelectNoneButton"] = "Select none",
+            ["DetailsButton"] = "Details",
+            ["ExportSelectedButton"] = "Export selected",
+            ["AliasColumn"] = "Alias",
+            ["IdColumn"] = "ID",
+            ["FileNameColumn"] = "File name",
+            ["YamlFileFilter"] = "YAML files (*.yaml;*.yml)|*.yaml;*.yml|All files (*.*)|*.*",
+            ["SelectSourceTitle"] = "Select automations.yaml",
+            ["SelectOutputTitle"] = "Select export folder",
+            ["LoadedStatus"] = "{0} automation(s) loaded.",
+            ["LoadFailedStatus"] = "Loading failed.",
+            ["LoadErrorTitle"] = "Load error",
+            ["SelectAutomationMessage"] = "Please select an automation first.",
+            ["NoAutomationSelectedTitle"] = "No automation selected",
+            ["SelectAtLeastOneMessage"] = "Please select at least one automation.",
+            ["NothingSelectedTitle"] = "Nothing selected",
+            ["ExportedStatus"] = "{0} automation(s) exported.",
+            ["ExportCompletedMessage"] = "{0} automation(s) exported to:{1}{2}",
+            ["ExportCompletedTitle"] = "Export complete",
+            ["ExportFailedStatus"] = "Export failed.",
+            ["ExportErrorTitle"] = "Export error",
+            ["SettingSavedStatus"] = "Setting saved.",
+            ["SettingSavedMessage"] = "The export folder and language were saved next to the EXE.",
+            ["SettingSavedTitle"] = "Setting saved",
+            ["SaveFailedStatus"] = "Saving failed.",
+            ["SaveErrorTitle"] = "Save error",
+            ["DetailsTitle"] = "Automation: {0}",
+            ["EntitiesTab"] = "Entities",
+            ["YamlTab"] = "YAML",
+            ["EntityColumn"] = "Entity",
+            ["SourceColumn"] = "Source",
+            ["LineColumn"] = "Line",
+            ["ContextColumn"] = "Context",
+            ["NoEntitiesFooter"] = "No entities detected.",
+            ["EntitiesFooter"] = "{0} entity/entities detected. Template matches are detected heuristically.",
+            ["CopyYamlButton"] = "Copy YAML",
+            ["SourceYaml"] = "YAML",
+            ["SourceTemplate"] = "Template",
+            ["MissingSourcePath"] = "Please select an automations.yaml file.",
+            ["MissingOutputPath"] = "Please select an export folder.",
+            ["NoAutomationsFound"] = "No top-level automation entries found. Expected a YAML list starting with '- ...'."
+        },
+        ["de"] = new()
+        {
+            ["LanguageSystem"] = "System",
+            ["LanguageGerman"] = "Deutsch",
+            ["LanguageEnglish"] = "Englisch",
+            ["LanguageFrench"] = "Französisch",
+            ["LanguageSpanish"] = "Spanisch",
+            ["LanguagePolish"] = "Polnisch",
+            ["LanguageRussian"] = "Russisch",
+            ["AppTitle"] = "Home Assistant Automationen exportieren",
+            ["SourceFileLabel"] = "automations.yaml",
+            ["ExportFolderLabel"] = "Export-Ordner",
+            ["LanguageLabel"] = "Sprache",
+            ["ChooseFileButton"] = "Datei wählen...",
+            ["ChooseFolderButton"] = "Ordner wählen...",
+            ["SaveSettingButton"] = "Einstellung speichern",
+            ["LoadButton"] = "Laden",
+            ["SelectAllButton"] = "Alle auswählen",
+            ["SelectNoneButton"] = "Keine auswählen",
+            ["DetailsButton"] = "Details",
+            ["ExportSelectedButton"] = "Ausgewählte exportieren",
+            ["AliasColumn"] = "Alias",
+            ["IdColumn"] = "ID",
+            ["FileNameColumn"] = "Dateiname",
+            ["YamlFileFilter"] = "YAML-Dateien (*.yaml;*.yml)|*.yaml;*.yml|Alle Dateien (*.*)|*.*",
+            ["SelectSourceTitle"] = "automations.yaml auswählen",
+            ["SelectOutputTitle"] = "Export-Ordner auswählen",
+            ["LoadedStatus"] = "{0} Automation(en) geladen.",
+            ["LoadFailedStatus"] = "Laden fehlgeschlagen.",
+            ["LoadErrorTitle"] = "Fehler beim Laden",
+            ["SelectAutomationMessage"] = "Bitte zuerst eine Automation auswählen.",
+            ["NoAutomationSelectedTitle"] = "Keine Automation ausgewählt",
+            ["SelectAtLeastOneMessage"] = "Bitte mindestens eine Automation auswählen.",
+            ["NothingSelectedTitle"] = "Nichts ausgewählt",
+            ["ExportedStatus"] = "{0} Automation(en) exportiert.",
+            ["ExportCompletedMessage"] = "{0} Automation(en) exportiert nach:{1}{2}",
+            ["ExportCompletedTitle"] = "Export abgeschlossen",
+            ["ExportFailedStatus"] = "Export fehlgeschlagen.",
+            ["ExportErrorTitle"] = "Fehler beim Export",
+            ["SettingSavedStatus"] = "Einstellung gespeichert.",
+            ["SettingSavedMessage"] = "Export-Ordner und Sprache wurden neben der EXE gespeichert.",
+            ["SettingSavedTitle"] = "Einstellung gespeichert",
+            ["SaveFailedStatus"] = "Speichern fehlgeschlagen.",
+            ["SaveErrorTitle"] = "Fehler beim Speichern",
+            ["DetailsTitle"] = "Automation: {0}",
+            ["EntitiesTab"] = "Entitäten",
+            ["YamlTab"] = "YAML",
+            ["EntityColumn"] = "Entität",
+            ["SourceColumn"] = "Quelle",
+            ["LineColumn"] = "Zeile",
+            ["ContextColumn"] = "Kontext",
+            ["NoEntitiesFooter"] = "Keine Entitäten erkannt.",
+            ["EntitiesFooter"] = "{0} Entität(en) erkannt. Template-Treffer sind heuristisch erkannt.",
+            ["CopyYamlButton"] = "YAML kopieren",
+            ["SourceYaml"] = "YAML",
+            ["SourceTemplate"] = "Template",
+            ["MissingSourcePath"] = "Bitte eine automations.yaml auswählen.",
+            ["MissingOutputPath"] = "Bitte einen Export-Ordner auswählen.",
+            ["NoAutomationsFound"] = "Keine Top-Level-Automationen gefunden. Erwartet wird eine YAML-Liste, die mit '- ...' beginnt."
+        },
+        ["fr"] = new()
+        {
+            ["LanguageSystem"] = "Système",
+            ["LanguageGerman"] = "Allemand",
+            ["LanguageEnglish"] = "Anglais",
+            ["LanguageFrench"] = "Français",
+            ["LanguageSpanish"] = "Espagnol",
+            ["LanguagePolish"] = "Polonais",
+            ["LanguageRussian"] = "Russe",
+            ["AppTitle"] = "Exporter les automatisations Home Assistant",
+            ["SourceFileLabel"] = "automations.yaml",
+            ["ExportFolderLabel"] = "Dossier export",
+            ["LanguageLabel"] = "Langue",
+            ["ChooseFileButton"] = "Choisir fichier...",
+            ["ChooseFolderButton"] = "Choisir dossier...",
+            ["SaveSettingButton"] = "Enregistrer",
+            ["LoadButton"] = "Charger",
+            ["SelectAllButton"] = "Tout sélectionner",
+            ["SelectNoneButton"] = "Aucun",
+            ["DetailsButton"] = "Détails",
+            ["ExportSelectedButton"] = "Exporter sélection",
+            ["AliasColumn"] = "Alias",
+            ["IdColumn"] = "ID",
+            ["FileNameColumn"] = "Nom de fichier",
+            ["YamlFileFilter"] = "Fichiers YAML (*.yaml;*.yml)|*.yaml;*.yml|Tous les fichiers (*.*)|*.*",
+            ["SelectSourceTitle"] = "Sélectionner automations.yaml",
+            ["SelectOutputTitle"] = "Sélectionner le dossier d'export",
+            ["LoadedStatus"] = "{0} automatisation(s) chargée(s).",
+            ["LoadFailedStatus"] = "Chargement échoué.",
+            ["LoadErrorTitle"] = "Erreur de chargement",
+            ["SelectAutomationMessage"] = "Sélectionnez d'abord une automatisation.",
+            ["NoAutomationSelectedTitle"] = "Aucune automatisation sélectionnée",
+            ["SelectAtLeastOneMessage"] = "Sélectionnez au moins une automatisation.",
+            ["NothingSelectedTitle"] = "Aucune sélection",
+            ["ExportedStatus"] = "{0} automatisation(s) exportée(s).",
+            ["ExportCompletedMessage"] = "{0} automatisation(s) exportée(s) vers :{1}{2}",
+            ["ExportCompletedTitle"] = "Export terminé",
+            ["ExportFailedStatus"] = "Export échoué.",
+            ["ExportErrorTitle"] = "Erreur d'export",
+            ["SettingSavedStatus"] = "Paramètre enregistré.",
+            ["SettingSavedMessage"] = "Le dossier d'export et la langue ont été enregistrés à côté de l'EXE.",
+            ["SettingSavedTitle"] = "Paramètre enregistré",
+            ["SaveFailedStatus"] = "Enregistrement échoué.",
+            ["SaveErrorTitle"] = "Erreur d'enregistrement",
+            ["DetailsTitle"] = "Automatisation : {0}",
+            ["EntitiesTab"] = "Entités",
+            ["YamlTab"] = "YAML",
+            ["EntityColumn"] = "Entité",
+            ["SourceColumn"] = "Source",
+            ["LineColumn"] = "Ligne",
+            ["ContextColumn"] = "Contexte",
+            ["NoEntitiesFooter"] = "Aucune entité détectée.",
+            ["EntitiesFooter"] = "{0} entité(s) détectée(s). Les correspondances de modèle sont heuristiques.",
+            ["CopyYamlButton"] = "Copier YAML",
+            ["SourceYaml"] = "YAML",
+            ["SourceTemplate"] = "Modèle",
+            ["MissingSourcePath"] = "Sélectionnez un fichier automations.yaml.",
+            ["MissingOutputPath"] = "Sélectionnez un dossier d'export.",
+            ["NoAutomationsFound"] = "Aucune automatisation de premier niveau trouvée. Une liste YAML commençant par '- ...' est attendue."
+        },
+        ["es"] = new()
+        {
+            ["LanguageSystem"] = "Sistema",
+            ["LanguageGerman"] = "Alemán",
+            ["LanguageEnglish"] = "Inglés",
+            ["LanguageFrench"] = "Francés",
+            ["LanguageSpanish"] = "Español",
+            ["LanguagePolish"] = "Polaco",
+            ["LanguageRussian"] = "Ruso",
+            ["AppTitle"] = "Exportar automatizaciones de Home Assistant",
+            ["SourceFileLabel"] = "automations.yaml",
+            ["ExportFolderLabel"] = "Carpeta export",
+            ["LanguageLabel"] = "Idioma",
+            ["ChooseFileButton"] = "Elegir archivo...",
+            ["ChooseFolderButton"] = "Elegir carpeta...",
+            ["SaveSettingButton"] = "Guardar",
+            ["LoadButton"] = "Cargar",
+            ["SelectAllButton"] = "Seleccionar todo",
+            ["SelectNoneButton"] = "Ninguna",
+            ["DetailsButton"] = "Detalles",
+            ["ExportSelectedButton"] = "Exportar selección",
+            ["AliasColumn"] = "Alias",
+            ["IdColumn"] = "ID",
+            ["FileNameColumn"] = "Archivo",
+            ["YamlFileFilter"] = "Archivos YAML (*.yaml;*.yml)|*.yaml;*.yml|Todos los archivos (*.*)|*.*",
+            ["SelectSourceTitle"] = "Seleccionar automations.yaml",
+            ["SelectOutputTitle"] = "Seleccionar carpeta de exportación",
+            ["LoadedStatus"] = "{0} automatización(es) cargada(s).",
+            ["LoadFailedStatus"] = "Error al cargar.",
+            ["LoadErrorTitle"] = "Error de carga",
+            ["SelectAutomationMessage"] = "Seleccione primero una automatización.",
+            ["NoAutomationSelectedTitle"] = "Ninguna automatización seleccionada",
+            ["SelectAtLeastOneMessage"] = "Seleccione al menos una automatización.",
+            ["NothingSelectedTitle"] = "Nada seleccionado",
+            ["ExportedStatus"] = "{0} automatización(es) exportada(s).",
+            ["ExportCompletedMessage"] = "{0} automatización(es) exportada(s) a:{1}{2}",
+            ["ExportCompletedTitle"] = "Exportación completada",
+            ["ExportFailedStatus"] = "Error al exportar.",
+            ["ExportErrorTitle"] = "Error de exportación",
+            ["SettingSavedStatus"] = "Configuración guardada.",
+            ["SettingSavedMessage"] = "La carpeta de exportación y el idioma se guardaron junto al EXE.",
+            ["SettingSavedTitle"] = "Configuración guardada",
+            ["SaveFailedStatus"] = "Error al guardar.",
+            ["SaveErrorTitle"] = "Error al guardar",
+            ["DetailsTitle"] = "Automatización: {0}",
+            ["EntitiesTab"] = "Entidades",
+            ["YamlTab"] = "YAML",
+            ["EntityColumn"] = "Entidad",
+            ["SourceColumn"] = "Origen",
+            ["LineColumn"] = "Línea",
+            ["ContextColumn"] = "Contexto",
+            ["NoEntitiesFooter"] = "No se detectaron entidades.",
+            ["EntitiesFooter"] = "{0} entidad(es) detectada(s). Las coincidencias de plantillas son heurísticas.",
+            ["CopyYamlButton"] = "Copiar YAML",
+            ["SourceYaml"] = "YAML",
+            ["SourceTemplate"] = "Plantilla",
+            ["MissingSourcePath"] = "Seleccione un archivo automations.yaml.",
+            ["MissingOutputPath"] = "Seleccione una carpeta de exportación.",
+            ["NoAutomationsFound"] = "No se encontraron automatizaciones de nivel superior. Se esperaba una lista YAML que empieza con '- ...'."
+        },
+        ["pl"] = new()
+        {
+            ["LanguageSystem"] = "System",
+            ["LanguageGerman"] = "Niemiecki",
+            ["LanguageEnglish"] = "Angielski",
+            ["LanguageFrench"] = "Francuski",
+            ["LanguageSpanish"] = "Hiszpański",
+            ["LanguagePolish"] = "Polski",
+            ["LanguageRussian"] = "Rosyjski",
+            ["AppTitle"] = "Eksport automatyzacji Home Assistant",
+            ["SourceFileLabel"] = "automations.yaml",
+            ["ExportFolderLabel"] = "Folder eksportu",
+            ["LanguageLabel"] = "Język",
+            ["ChooseFileButton"] = "Wybierz plik...",
+            ["ChooseFolderButton"] = "Wybierz folder...",
+            ["SaveSettingButton"] = "Zapisz",
+            ["LoadButton"] = "Wczytaj",
+            ["SelectAllButton"] = "Zaznacz wszystko",
+            ["SelectNoneButton"] = "Wyczyść",
+            ["DetailsButton"] = "Szczegóły",
+            ["ExportSelectedButton"] = "Eksportuj wybrane",
+            ["AliasColumn"] = "Alias",
+            ["IdColumn"] = "ID",
+            ["FileNameColumn"] = "Nazwa pliku",
+            ["YamlFileFilter"] = "Pliki YAML (*.yaml;*.yml)|*.yaml;*.yml|Wszystkie pliki (*.*)|*.*",
+            ["SelectSourceTitle"] = "Wybierz automations.yaml",
+            ["SelectOutputTitle"] = "Wybierz folder eksportu",
+            ["LoadedStatus"] = "Wczytano automatyzacje: {0}.",
+            ["LoadFailedStatus"] = "Wczytywanie nie powiodło się.",
+            ["LoadErrorTitle"] = "Błąd wczytywania",
+            ["SelectAutomationMessage"] = "Najpierw wybierz automatyzację.",
+            ["NoAutomationSelectedTitle"] = "Nie wybrano automatyzacji",
+            ["SelectAtLeastOneMessage"] = "Wybierz co najmniej jedną automatyzację.",
+            ["NothingSelectedTitle"] = "Nic nie wybrano",
+            ["ExportedStatus"] = "Wyeksportowano automatyzacje: {0}.",
+            ["ExportCompletedMessage"] = "Wyeksportowano automatyzacje: {0} do:{1}{2}",
+            ["ExportCompletedTitle"] = "Eksport zakończony",
+            ["ExportFailedStatus"] = "Eksport nie powiódł się.",
+            ["ExportErrorTitle"] = "Błąd eksportu",
+            ["SettingSavedStatus"] = "Ustawienie zapisane.",
+            ["SettingSavedMessage"] = "Folder eksportu i język zapisano obok pliku EXE.",
+            ["SettingSavedTitle"] = "Ustawienie zapisane",
+            ["SaveFailedStatus"] = "Zapisywanie nie powiodło się.",
+            ["SaveErrorTitle"] = "Błąd zapisu",
+            ["DetailsTitle"] = "Automatyzacja: {0}",
+            ["EntitiesTab"] = "Encje",
+            ["YamlTab"] = "YAML",
+            ["EntityColumn"] = "Encja",
+            ["SourceColumn"] = "Źródło",
+            ["LineColumn"] = "Wiersz",
+            ["ContextColumn"] = "Kontekst",
+            ["NoEntitiesFooter"] = "Nie wykryto encji.",
+            ["EntitiesFooter"] = "Wykryto encje: {0}. Trafienia w szablonach są heurystyczne.",
+            ["CopyYamlButton"] = "Kopiuj YAML",
+            ["SourceYaml"] = "YAML",
+            ["SourceTemplate"] = "Szablon",
+            ["MissingSourcePath"] = "Wybierz plik automations.yaml.",
+            ["MissingOutputPath"] = "Wybierz folder eksportu.",
+            ["NoAutomationsFound"] = "Nie znaleziono automatyzacji najwyższego poziomu. Oczekiwana jest lista YAML zaczynająca się od '- ...'."
+        },
+        ["ru"] = new()
+        {
+            ["LanguageSystem"] = "Система",
+            ["LanguageGerman"] = "Немецкий",
+            ["LanguageEnglish"] = "Английский",
+            ["LanguageFrench"] = "Французский",
+            ["LanguageSpanish"] = "Испанский",
+            ["LanguagePolish"] = "Польский",
+            ["LanguageRussian"] = "Русский",
+            ["AppTitle"] = "Экспорт автоматизаций Home Assistant",
+            ["SourceFileLabel"] = "automations.yaml",
+            ["ExportFolderLabel"] = "Папка экспорта",
+            ["LanguageLabel"] = "Язык",
+            ["ChooseFileButton"] = "Выбрать файл...",
+            ["ChooseFolderButton"] = "Выбрать папку...",
+            ["SaveSettingButton"] = "Сохранить",
+            ["LoadButton"] = "Загрузить",
+            ["SelectAllButton"] = "Выбрать все",
+            ["SelectNoneButton"] = "Снять выбор",
+            ["DetailsButton"] = "Детали",
+            ["ExportSelectedButton"] = "Экспорт выбранных",
+            ["AliasColumn"] = "Алиас",
+            ["IdColumn"] = "ID",
+            ["FileNameColumn"] = "Имя файла",
+            ["YamlFileFilter"] = "Файлы YAML (*.yaml;*.yml)|*.yaml;*.yml|Все файлы (*.*)|*.*",
+            ["SelectSourceTitle"] = "Выбрать automations.yaml",
+            ["SelectOutputTitle"] = "Выбрать папку экспорта",
+            ["LoadedStatus"] = "Загружено автоматизаций: {0}.",
+            ["LoadFailedStatus"] = "Ошибка загрузки.",
+            ["LoadErrorTitle"] = "Ошибка загрузки",
+            ["SelectAutomationMessage"] = "Сначала выберите автоматизацию.",
+            ["NoAutomationSelectedTitle"] = "Автоматизация не выбрана",
+            ["SelectAtLeastOneMessage"] = "Выберите хотя бы одну автоматизацию.",
+            ["NothingSelectedTitle"] = "Ничего не выбрано",
+            ["ExportedStatus"] = "Экспортировано автоматизаций: {0}.",
+            ["ExportCompletedMessage"] = "Экспортировано автоматизаций: {0} в:{1}{2}",
+            ["ExportCompletedTitle"] = "Экспорт завершен",
+            ["ExportFailedStatus"] = "Ошибка экспорта.",
+            ["ExportErrorTitle"] = "Ошибка экспорта",
+            ["SettingSavedStatus"] = "Настройка сохранена.",
+            ["SettingSavedMessage"] = "Папка экспорта и язык сохранены рядом с EXE.",
+            ["SettingSavedTitle"] = "Настройка сохранена",
+            ["SaveFailedStatus"] = "Ошибка сохранения.",
+            ["SaveErrorTitle"] = "Ошибка сохранения",
+            ["DetailsTitle"] = "Автоматизация: {0}",
+            ["EntitiesTab"] = "Объекты",
+            ["YamlTab"] = "YAML",
+            ["EntityColumn"] = "Объект",
+            ["SourceColumn"] = "Источник",
+            ["LineColumn"] = "Строка",
+            ["ContextColumn"] = "Контекст",
+            ["NoEntitiesFooter"] = "Объекты не обнаружены.",
+            ["EntitiesFooter"] = "Обнаружено объектов: {0}. Совпадения в шаблонах определяются эвристически.",
+            ["CopyYamlButton"] = "Копировать YAML",
+            ["SourceYaml"] = "YAML",
+            ["SourceTemplate"] = "Шаблон",
+            ["MissingSourcePath"] = "Выберите файл automations.yaml.",
+            ["MissingOutputPath"] = "Выберите папку экспорта.",
+            ["NoAutomationsFound"] = "Автоматизации верхнего уровня не найдены. Ожидается YAML-список, начинающийся с '- ...'."
+        }
+    };
+
+    private static string language = "en";
+
+    public static void Use(string? languageKey)
+    {
+        language = ResolveLanguage(languageKey);
+    }
+
+    public static string T(string key)
+    {
+        if (Translations.TryGetValue(language, out var selected) && selected.TryGetValue(key, out var translated))
+        {
+            return translated;
+        }
+
+        return Translations["en"].TryGetValue(key, out var fallback) ? fallback : key;
+    }
+
+    public static string Format(string key, params object[] args)
+    {
+        return string.Format(CultureInfo.CurrentCulture, T(key), args);
+    }
+
+    public static IEnumerable<LanguageChoice> GetLanguageChoices()
+    {
+        yield return new LanguageChoice(SystemLanguageKey, T("LanguageSystem"));
+        yield return new LanguageChoice("de", T("LanguageGerman"));
+        yield return new LanguageChoice("en", T("LanguageEnglish"));
+        yield return new LanguageChoice("fr", T("LanguageFrench"));
+        yield return new LanguageChoice("es", T("LanguageSpanish"));
+        yield return new LanguageChoice("pl", T("LanguagePolish"));
+        yield return new LanguageChoice("ru", T("LanguageRussian"));
+    }
+
+    private static string ResolveLanguage(string? languageKey)
+    {
+        if (string.IsNullOrWhiteSpace(languageKey) || string.Equals(languageKey, SystemLanguageKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return SystemLanguageMap.TryGetValue(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName, out var detected)
+                ? detected
+                : "en";
+        }
+
+        return Translations.ContainsKey(languageKey) ? languageKey : "en";
+    }
+}
+
+internal sealed record LanguageChoice(string Key, string DisplayName);
+
 internal sealed class AutomationDetailsDialog : Form
 {
     public AutomationDetailsDialog(AutomationEntry automation)
     {
-        Text = $"Automation: {automation.Alias}";
+        Text = I18n.Format("DetailsTitle", automation.Alias);
         StartPosition = FormStartPosition.CenterParent;
         MinimumSize = new Size(760, 520);
         Size = new Size(900, 640);
@@ -449,7 +969,7 @@ internal sealed class AutomationDetailsDialog : Form
 
     private static TabPage CreateEntitiesTab(AutomationEntry automation)
     {
-        var tab = new TabPage("Entitäten");
+        var tab = new TabPage(I18n.T("EntitiesTab"));
         var entities = AutomationExporter.ExtractEntities(automation).ToList();
 
         var root = new TableLayoutPanel
@@ -480,22 +1000,22 @@ internal sealed class AutomationDetailsDialog : Form
 
         grid.Columns.Add(new DataGridViewTextBoxColumn
         {
-            HeaderText = "Entität",
+            HeaderText = I18n.T("EntityColumn"),
             FillWeight = 46
         });
         grid.Columns.Add(new DataGridViewTextBoxColumn
         {
-            HeaderText = "Quelle",
+            HeaderText = I18n.T("SourceColumn"),
             FillWeight = 20
         });
         grid.Columns.Add(new DataGridViewTextBoxColumn
         {
-            HeaderText = "Zeile",
+            HeaderText = I18n.T("LineColumn"),
             FillWeight = 10
         });
         grid.Columns.Add(new DataGridViewTextBoxColumn
         {
-            HeaderText = "Kontext",
+            HeaderText = I18n.T("ContextColumn"),
             FillWeight = 60
         });
 
@@ -509,8 +1029,8 @@ internal sealed class AutomationDetailsDialog : Form
             AutoSize = true,
             Padding = new Padding(0, 8, 0, 0),
             Text = entities.Count == 0
-                ? "Keine Entitäten erkannt."
-                : $"{entities.Count} Entität(en) erkannt. Template-Treffer sind heuristisch erkannt."
+                ? I18n.T("NoEntitiesFooter")
+                : I18n.Format("EntitiesFooter", entities.Count)
         };
 
         root.Controls.Add(grid, 0, 0);
@@ -520,7 +1040,7 @@ internal sealed class AutomationDetailsDialog : Form
 
     private static TabPage CreateYamlTab(AutomationEntry automation)
     {
-        var tab = new TabPage("YAML");
+        var tab = new TabPage(I18n.T("YamlTab"));
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -545,7 +1065,7 @@ internal sealed class AutomationDetailsDialog : Form
 
         var copyButton = new Button
         {
-            Text = "YAML kopieren",
+            Text = I18n.T("CopyYamlButton"),
             AutoSize = true,
             Anchor = AnchorStyles.Right,
             Margin = new Padding(0, 8, 0, 0)
@@ -572,7 +1092,7 @@ internal static class AutomationExporter
 
             if (automations.Count == 0)
             {
-                Console.Error.WriteLine("No top-level automation entries found. Expected a YAML list starting with '- ...'.");
+                Console.Error.WriteLine(I18n.T("NoAutomationsFound"));
                 return 1;
             }
 
@@ -599,7 +1119,7 @@ internal static class AutomationExporter
     {
         if (string.IsNullOrWhiteSpace(sourcePath))
         {
-            throw new InvalidOperationException("Bitte eine automations.yaml auswählen.");
+            throw new InvalidOperationException(I18n.T("MissingSourcePath"));
         }
 
         var sourceFile = Path.GetFullPath(sourcePath);
@@ -635,7 +1155,7 @@ internal static class AutomationExporter
     {
         if (string.IsNullOrWhiteSpace(outputPath))
         {
-            throw new InvalidOperationException("Bitte einen Export-Ordner auswählen.");
+            throw new InvalidOperationException(I18n.T("MissingOutputPath"));
         }
 
         var outputFolder = Path.GetFullPath(outputPath);
@@ -683,7 +1203,7 @@ internal static class AutomationExporter
 
                 yield return new AutomationEntityReference(
                     EntityId: entityId,
-                    Source: isTemplateLike ? "Template" : "YAML",
+                    Source: isTemplateLike ? I18n.T("SourceTemplate") : I18n.T("SourceYaml"),
                     LineNumber: index + 1,
                     Context: line.Trim());
             }

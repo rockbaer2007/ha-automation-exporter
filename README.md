@@ -10,8 +10,25 @@ Windows tool to export Home Assistant `automations.yaml` entries into separate Y
 - Select a Home Assistant `automations.yaml` file.
 - Review all automations in a table with checkboxes.
 - Open a detail dialog per automation with detected entities and the full YAML code.
+- Choose the UI language manually or follow the Windows system language.
 - Export selected automations as individual `.yaml` files.
 - Persist the export folder in `HaAutomationExporter.settings.json` next to the EXE for portable use.
+
+## Languages
+
+The exporter supports:
+
+- System
+- German
+- English
+- French
+- Spanish
+- Polish
+- Russian
+
+`System` detects the Windows UI language for `de`, `en`, `fr`, `es`, `pl` and `ru`. Any unsupported system language falls back to English.
+
+The selected language is stored in `HaAutomationExporter.settings.json` next to the EXE.
 
 ## Automation Details
 
