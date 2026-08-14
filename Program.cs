@@ -23,23 +23,16 @@ internal static class Program
 internal sealed class ExporterForm : Form
 {
     private readonly TextBox sourceTextBox = new();
-    private readonly TextBox outputTextBox = new();
     private readonly DataGridView automationGrid = new();
-    private readonly Label sourcePathLabel = new();
-    private readonly Label outputPathLabel = new();
-    private readonly Label languageLabel = new();
     private readonly Label statusLabel = new();
     private readonly Button sourceBrowseButton = new();
-    private readonly Button outputBrowseButton = new();
-    private readonly Button saveSettingsButton = new();
     private readonly Button loadButton = new();
     private readonly Button selectAllButton = new();
     private readonly Button selectNoneButton = new();
+    private readonly Button settingsButton = new();
     private readonly Button detailsButton = new();
     private readonly Button exportButton = new();
-    private readonly ComboBox languageComboBox = new();
     private PortableSettings settings = PortableSettings.Load();
-    private bool isChangingLanguage;
     private List<AutomationEntry> automations = [];
 
     public ExporterForm()
@@ -61,54 +54,53 @@ internal sealed class ExporterForm : Form
             "automations-export-selected");
 
         sourceTextBox.Text = File.Exists(defaultSource) ? defaultSource : string.Empty;
-        outputTextBox.Text = settings.ExportFolder;
 
-        if (string.IsNullOrWhiteSpace(outputTextBox.Text))
+        if (string.IsNullOrWhiteSpace(settings.ExportFolder))
         {
-            outputTextBox.Text = defaultOutput;
+            settings = settings with { ExportFolder = defaultOutput };
         }
 
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 3,
             Padding = new Padding(12)
         };
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         Controls.Add(root);
 
-        root.Controls.Add(CreatePathRow(sourcePathLabel, sourceTextBox, sourceBrowseButton, SelectSourceFile), 0, 0);
-        root.Controls.Add(CreatePathRow(outputPathLabel, outputTextBox, outputBrowseButton, SelectOutputFolder, saveSettingsButton), 0, 1);
-        root.Controls.Add(CreateLanguageRow(), 0, 2);
+        root.Controls.Add(CreateSourcePathRow(), 0, 0);
 
         ConfigureGrid();
-        root.Controls.Add(automationGrid, 0, 3);
+        root.Controls.Add(automationGrid, 0, 1);
 
         var footer = new TableLayoutPanel
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
-            ColumnCount = 6,
+            ColumnCount = 7,
             Padding = new Padding(0, 10, 0, 0)
         };
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        root.Controls.Add(footer, 0, 4);
+        root.Controls.Add(footer, 0, 2);
 
         loadButton.AutoSize = true;
         loadButton.Click += (_, _) => LoadAutomations();
 
         selectAllButton.AutoSize = true;
         selectAllButton.Click += (_, _) => SetAllChecked(true);
+
+        settingsButton.AutoSize = true;
+        settingsButton.Click += (_, _) => ShowSettingsDialog();
 
         selectNoneButton.AutoSize = true;
         selectNoneButton.Click += (_, _) => SetAllChecked(false);
@@ -126,10 +118,11 @@ internal sealed class ExporterForm : Form
 
         footer.Controls.Add(loadButton, 0, 0);
         footer.Controls.Add(selectAllButton, 1, 0);
-        footer.Controls.Add(detailsButton, 2, 0);
-        footer.Controls.Add(statusLabel, 3, 0);
-        footer.Controls.Add(selectNoneButton, 4, 0);
-        footer.Controls.Add(exportButton, 5, 0);
+        footer.Controls.Add(settingsButton, 2, 0);
+        footer.Controls.Add(detailsButton, 3, 0);
+        footer.Controls.Add(statusLabel, 4, 0);
+        footer.Controls.Add(selectNoneButton, 5, 0);
+        footer.Controls.Add(exportButton, 6, 0);
 
         ApplyUiText();
 
@@ -139,77 +132,26 @@ internal sealed class ExporterForm : Form
         }
     }
 
-    private Control CreatePathRow(
-        Label label,
-        TextBox textBox,
-        Button button,
-        Action browseAction,
-        Button? saveButton = null)
+    private Control CreateSourcePathRow()
     {
         var panel = new TableLayoutPanel
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
-            ColumnCount = saveButton is null ? 3 : 4,
+            ColumnCount = 2,
             Padding = new Padding(0, 0, 0, 8)
         };
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        if (saveButton is not null)
-        {
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        }
 
-        label.AutoSize = true;
-        label.Anchor = AnchorStyles.Left;
-        label.TextAlign = ContentAlignment.MiddleLeft;
+        sourceTextBox.Dock = DockStyle.Fill;
 
-        textBox.Dock = DockStyle.Fill;
+        sourceBrowseButton.AutoSize = true;
+        sourceBrowseButton.Click += (_, _) => SelectSourceFile();
 
-        button.AutoSize = true;
-        button.Click += (_, _) => browseAction();
+        panel.Controls.Add(sourceTextBox, 0, 0);
+        panel.Controls.Add(sourceBrowseButton, 1, 0);
 
-        panel.Controls.Add(label, 0, 0);
-        panel.Controls.Add(textBox, 1, 0);
-        panel.Controls.Add(button, 2, 0);
-
-        if (saveButton is not null)
-        {
-            saveButton.AutoSize = true;
-            saveButton.Click += (_, _) => SaveSettings();
-            panel.Controls.Add(saveButton, 3, 0);
-        }
-
-        return panel;
-    }
-
-    private Control CreateLanguageRow()
-    {
-        var panel = new TableLayoutPanel
-        {
-            AutoSize = true,
-            Dock = DockStyle.Fill,
-            ColumnCount = 3,
-            Padding = new Padding(0, 0, 0, 8)
-        };
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-
-        languageLabel.AutoSize = true;
-        languageLabel.Anchor = AnchorStyles.Left;
-        languageLabel.TextAlign = ContentAlignment.MiddleLeft;
-
-        languageComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-        languageComboBox.Width = 220;
-        languageComboBox.DisplayMember = nameof(LanguageChoice.DisplayName);
-        languageComboBox.ValueMember = nameof(LanguageChoice.Key);
-        RefreshLanguageChoices(settings.Language);
-        languageComboBox.SelectedValueChanged += (_, _) => ChangeLanguage();
-
-        panel.Controls.Add(languageLabel, 0, 0);
-        panel.Controls.Add(languageComboBox, 1, 0);
         return panel;
     }
 
@@ -262,14 +204,10 @@ internal sealed class ExporterForm : Form
     private void ApplyUiText()
     {
         Text = I18n.T("AppTitle");
-        sourcePathLabel.Text = I18n.T("SourceFileLabel");
-        outputPathLabel.Text = I18n.T("ExportFolderLabel");
-        languageLabel.Text = I18n.T("LanguageLabel");
         sourceBrowseButton.Text = I18n.T("ChooseFileButton");
-        outputBrowseButton.Text = I18n.T("ChooseFolderButton");
-        saveSettingsButton.Text = I18n.T("SaveSettingButton");
         loadButton.Text = I18n.T("LoadButton");
         selectAllButton.Text = I18n.T("SelectAllButton");
+        settingsButton.Text = I18n.T("SettingsButton");
         selectNoneButton.Text = I18n.T("SelectNoneButton");
         detailsButton.Text = I18n.T("DetailsButton");
         exportButton.Text = I18n.T("ExportSelectedButton");
@@ -279,38 +217,19 @@ internal sealed class ExporterForm : Form
         automationGrid.Columns[3].HeaderText = I18n.T("FileNameColumn");
     }
 
-    private void ChangeLanguage()
+    private void ShowSettingsDialog()
     {
-        if (isChangingLanguage)
+        using var dialog = new SettingsDialog(settings);
+        if (dialog.ShowDialog(this) != DialogResult.OK)
         {
             return;
         }
 
-        if (languageComboBox.SelectedValue is not string language)
-        {
-            return;
-        }
-
-        settings = settings with { Language = language };
-        I18n.Use(language);
-        RefreshLanguageChoices(language);
+        settings = dialog.Settings;
+        I18n.Use(settings.Language);
         ApplyUiText();
-        SaveSettings(showMessage: false);
+        PortableSettings.Save(settings);
         statusLabel.Text = I18n.T("SettingSavedStatus");
-    }
-
-    private void RefreshLanguageChoices(string selectedLanguage)
-    {
-        isChangingLanguage = true;
-        try
-        {
-            languageComboBox.DataSource = I18n.GetLanguageChoices().ToList();
-            languageComboBox.SelectedValue = selectedLanguage;
-        }
-        finally
-        {
-            isChangingLanguage = false;
-        }
     }
 
     private void SelectSourceFile()
@@ -336,29 +255,6 @@ internal sealed class ExporterForm : Form
         {
             sourceTextBox.Text = dialog.FileName;
             LoadAutomations();
-        }
-    }
-
-    private void SelectOutputFolder()
-    {
-        using var dialog = new FolderBrowserDialog
-        {
-            Description = I18n.T("SelectOutputTitle"),
-            SelectedPath = Directory.Exists(outputTextBox.Text)
-                ? outputTextBox.Text
-                : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ShowNewFolderButton = true,
-            UseDescriptionForTitle = true
-        };
-
-        if (dialog.ShowDialog(this) == DialogResult.OK)
-        {
-            if (!string.IsNullOrWhiteSpace(dialog.SelectedPath))
-            {
-                outputTextBox.Text = dialog.SelectedPath;
-            }
-
-            SaveSettings(showMessage: false);
         }
     }
 
@@ -431,12 +327,12 @@ internal sealed class ExporterForm : Form
 
         try
         {
-            var exported = AutomationExporter.Export(selected, outputTextBox.Text).ToList();
+            var exported = AutomationExporter.Export(selected, settings.ExportFolder).ToList();
             SaveSettings(showMessage: false);
             statusLabel.Text = I18n.Format("ExportedStatus", exported.Count);
             MessageBox.Show(
                 this,
-                I18n.Format("ExportCompletedMessage", exported.Count, Environment.NewLine, Path.GetFullPath(outputTextBox.Text)),
+                I18n.Format("ExportCompletedMessage", exported.Count, Environment.NewLine, Path.GetFullPath(settings.ExportFolder)),
                 I18n.T("ExportCompletedTitle"),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
@@ -452,7 +348,6 @@ internal sealed class ExporterForm : Form
     {
         try
         {
-            settings = settings with { ExportFolder = outputTextBox.Text.Trim() };
             PortableSettings.Save(settings);
             statusLabel.Text = I18n.T("SettingSavedStatus");
 
@@ -466,6 +361,171 @@ internal sealed class ExporterForm : Form
             statusLabel.Text = I18n.T("SaveFailedStatus");
             MessageBox.Show(this, exception.Message, I18n.T("SaveErrorTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+}
+
+internal sealed class SettingsDialog : Form
+{
+    private readonly TextBox exportFolderTextBox = new();
+    private readonly ComboBox languageComboBox = new();
+
+    public SettingsDialog(PortableSettings settings)
+    {
+        Settings = settings;
+
+        Text = I18n.T("SettingsTitle");
+        StartPosition = FormStartPosition.CenterParent;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        ShowInTaskbar = false;
+        ClientSize = new Size(620, 145);
+
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Padding = new Padding(12)
+        };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        Controls.Add(root);
+
+        root.Controls.Add(CreateExportFolderRow(), 0, 0);
+        root.Controls.Add(CreateLanguageRow(settings.Language), 0, 1);
+        root.Controls.Add(CreateButtonRow(), 0, 2);
+    }
+
+    public PortableSettings Settings { get; private set; }
+
+    private Control CreateExportFolderRow()
+    {
+        var panel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            ColumnCount = 3,
+            Padding = new Padding(0, 0, 0, 8)
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        var label = new Label
+        {
+            Text = I18n.T("ExportFolderLabel"),
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+
+        exportFolderTextBox.Text = Settings.ExportFolder;
+        exportFolderTextBox.Dock = DockStyle.Fill;
+
+        var browseButton = new Button
+        {
+            Text = I18n.T("ChooseFolderButton"),
+            AutoSize = true
+        };
+        browseButton.Click += (_, _) => SelectOutputFolder();
+
+        panel.Controls.Add(label, 0, 0);
+        panel.Controls.Add(exportFolderTextBox, 1, 0);
+        panel.Controls.Add(browseButton, 2, 0);
+        return panel;
+    }
+
+    private Control CreateLanguageRow(string selectedLanguage)
+    {
+        var panel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            ColumnCount = 3,
+            Padding = new Padding(0, 0, 0, 8)
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        var label = new Label
+        {
+            Text = I18n.T("LanguageLabel"),
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+
+        languageComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+        languageComboBox.Width = 220;
+        languageComboBox.DisplayMember = nameof(LanguageChoice.DisplayName);
+        languageComboBox.ValueMember = nameof(LanguageChoice.Key);
+        languageComboBox.DataSource = I18n.GetLanguageChoices().ToList();
+        languageComboBox.SelectedValue = selectedLanguage;
+
+        panel.Controls.Add(label, 0, 0);
+        panel.Controls.Add(languageComboBox, 1, 0);
+        return panel;
+    }
+
+    private Control CreateButtonRow()
+    {
+        var panel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.RightToLeft,
+            Padding = new Padding(0, 8, 0, 0)
+        };
+
+        var okButton = new Button
+        {
+            Text = I18n.T("OkButton"),
+            AutoSize = true,
+            DialogResult = DialogResult.OK
+        };
+        okButton.Click += (_, _) => SaveDialogSettings();
+
+        var cancelButton = new Button
+        {
+            Text = I18n.T("CancelButton"),
+            AutoSize = true,
+            DialogResult = DialogResult.Cancel
+        };
+
+        AcceptButton = okButton;
+        CancelButton = cancelButton;
+        panel.Controls.Add(okButton);
+        panel.Controls.Add(cancelButton);
+        return panel;
+    }
+
+    private void SelectOutputFolder()
+    {
+        using var dialog = new FolderBrowserDialog
+        {
+            Description = I18n.T("SelectOutputTitle"),
+            SelectedPath = Directory.Exists(exportFolderTextBox.Text)
+                ? exportFolderTextBox.Text
+                : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ShowNewFolderButton = true,
+            UseDescriptionForTitle = true
+        };
+
+        if (dialog.ShowDialog(this) == DialogResult.OK && !string.IsNullOrWhiteSpace(dialog.SelectedPath))
+        {
+            exportFolderTextBox.Text = dialog.SelectedPath;
+        }
+    }
+
+    private void SaveDialogSettings()
+    {
+        Settings = Settings with
+        {
+            ExportFolder = exportFolderTextBox.Text.Trim(),
+            Language = languageComboBox.SelectedValue as string ?? I18n.SystemLanguageKey
+        };
     }
 }
 
@@ -535,6 +595,10 @@ internal static class I18n
             ["ChooseFileButton"] = "Choose file...",
             ["ChooseFolderButton"] = "Choose folder...",
             ["SaveSettingButton"] = "Save setting",
+            ["SettingsButton"] = "Settings",
+            ["SettingsTitle"] = "Settings",
+            ["OkButton"] = "OK",
+            ["CancelButton"] = "Cancel",
             ["LoadButton"] = "Load",
             ["SelectAllButton"] = "Select all",
             ["SelectNoneButton"] = "Select none",
@@ -595,6 +659,10 @@ internal static class I18n
             ["ChooseFileButton"] = "Datei wählen...",
             ["ChooseFolderButton"] = "Ordner wählen...",
             ["SaveSettingButton"] = "Einstellung speichern",
+            ["SettingsButton"] = "Einstellungen",
+            ["SettingsTitle"] = "Einstellungen",
+            ["OkButton"] = "OK",
+            ["CancelButton"] = "Abbrechen",
             ["LoadButton"] = "Laden",
             ["SelectAllButton"] = "Alle auswählen",
             ["SelectNoneButton"] = "Keine auswählen",
@@ -655,6 +723,10 @@ internal static class I18n
             ["ChooseFileButton"] = "Choisir fichier...",
             ["ChooseFolderButton"] = "Choisir dossier...",
             ["SaveSettingButton"] = "Enregistrer",
+            ["SettingsButton"] = "Paramètres",
+            ["SettingsTitle"] = "Paramètres",
+            ["OkButton"] = "OK",
+            ["CancelButton"] = "Annuler",
             ["LoadButton"] = "Charger",
             ["SelectAllButton"] = "Tout sélectionner",
             ["SelectNoneButton"] = "Aucun",
@@ -715,6 +787,10 @@ internal static class I18n
             ["ChooseFileButton"] = "Elegir archivo...",
             ["ChooseFolderButton"] = "Elegir carpeta...",
             ["SaveSettingButton"] = "Guardar",
+            ["SettingsButton"] = "Configuración",
+            ["SettingsTitle"] = "Configuración",
+            ["OkButton"] = "OK",
+            ["CancelButton"] = "Cancelar",
             ["LoadButton"] = "Cargar",
             ["SelectAllButton"] = "Seleccionar todo",
             ["SelectNoneButton"] = "Ninguna",
@@ -775,6 +851,10 @@ internal static class I18n
             ["ChooseFileButton"] = "Wybierz plik...",
             ["ChooseFolderButton"] = "Wybierz folder...",
             ["SaveSettingButton"] = "Zapisz",
+            ["SettingsButton"] = "Ustawienia",
+            ["SettingsTitle"] = "Ustawienia",
+            ["OkButton"] = "OK",
+            ["CancelButton"] = "Anuluj",
             ["LoadButton"] = "Wczytaj",
             ["SelectAllButton"] = "Zaznacz wszystko",
             ["SelectNoneButton"] = "Wyczyść",
@@ -835,6 +915,10 @@ internal static class I18n
             ["ChooseFileButton"] = "Выбрать файл...",
             ["ChooseFolderButton"] = "Выбрать папку...",
             ["SaveSettingButton"] = "Сохранить",
+            ["SettingsButton"] = "Настройки",
+            ["SettingsTitle"] = "Настройки",
+            ["OkButton"] = "OK",
+            ["CancelButton"] = "Отмена",
             ["LoadButton"] = "Загрузить",
             ["SelectAllButton"] = "Выбрать все",
             ["SelectNoneButton"] = "Снять выбор",
