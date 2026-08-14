@@ -3,14 +3,21 @@ using System.Text.RegularExpressions;
 using System.Configuration;
 using System.Windows.Forms;
 
-if (args.Length >= 2)
+internal static class Program
 {
-    return AutomationExporter.RunCli(args[0], args[1]);
-}
+    [STAThread]
+    public static int Main(string[] args)
+    {
+        if (args.Length >= 2)
+        {
+            return AutomationExporter.RunCli(args[0], args[1]);
+        }
 
-ApplicationConfiguration.Initialize();
-Application.Run(new ExporterForm());
-return 0;
+        ApplicationConfiguration.Initialize();
+        Application.Run(new ExporterForm());
+        return 0;
+    }
+}
 
 internal sealed class ExporterForm : Form
 {
@@ -214,14 +221,27 @@ internal sealed class ExporterForm : Form
 
     private void SelectOutputFolder()
     {
-        using var dialog = new FolderBrowserDialog
+        using var dialog = new OpenFileDialog
         {
-            SelectedPath = Directory.Exists(outputTextBox.Text) ? outputTextBox.Text : string.Empty
+            CheckFileExists = false,
+            FileName = "Ordner auswählen",
+            Filter = "Ordner|*.folder",
+            InitialDirectory = Directory.Exists(outputTextBox.Text)
+                ? outputTextBox.Text
+                : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            Title = "Export-Ordner auswählen",
+            ValidateNames = false
         };
 
         if (dialog.ShowDialog(this) == DialogResult.OK)
         {
-            outputTextBox.Text = dialog.SelectedPath;
+            var selectedPath = Path.GetDirectoryName(dialog.FileName);
+
+            if (!string.IsNullOrWhiteSpace(selectedPath))
+            {
+                outputTextBox.Text = selectedPath;
+            }
+
             SaveSettings(showMessage: false);
         }
     }
