@@ -8,7 +8,7 @@ Windows tool to export Home Assistant `automations.yaml` entries into separate Y
 - Select a Home Assistant `automations.yaml` file.
 - Review all automations in a table with checkboxes.
 - Export selected automations as individual `.yaml` files.
-- Persist the export folder in the per-user `.NET` `user.config`.
+- Persist the export folder in `HaAutomationExporter.settings.json` next to the EXE for portable use.
 
 ## Run
 

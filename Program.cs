@@ -1,6 +1,6 @@
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Configuration;
 using System.Windows.Forms;
 
 internal static class Program
@@ -45,7 +45,7 @@ internal sealed class ExporterForm : Form
             "automations-export-selected");
 
         sourceTextBox.Text = File.Exists(defaultSource) ? defaultSource : string.Empty;
-        outputTextBox.Text = AppSettings.Default.ExportFolder;
+        outputTextBox.Text = PortableSettings.Load().ExportFolder;
 
         if (string.IsNullOrWhiteSpace(outputTextBox.Text))
         {
@@ -324,13 +324,12 @@ internal sealed class ExporterForm : Form
     {
         try
         {
-            AppSettings.Default.ExportFolder = outputTextBox.Text.Trim();
-            AppSettings.Default.Save();
+            PortableSettings.Save(new PortableSettings(outputTextBox.Text.Trim()));
             statusLabel.Text = "Einstellung gespeichert.";
 
             if (showMessage)
             {
-                MessageBox.Show(this, "Export-Ordner wurde in user.config gespeichert.", "Einstellung gespeichert", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "Export-Ordner wurde neben der EXE gespeichert.", "Einstellung gespeichert", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
         catch (Exception exception)
@@ -341,18 +340,37 @@ internal sealed class ExporterForm : Form
     }
 }
 
-internal sealed class AppSettings : ApplicationSettingsBase
+internal sealed record PortableSettings(string ExportFolder)
 {
-    private static readonly AppSettings SettingsInstance = (AppSettings)Synchronized(new AppSettings());
-
-    public static AppSettings Default => SettingsInstance;
-
-    [UserScopedSetting]
-    [DefaultSettingValue("")]
-    public string ExportFolder
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        get => (string)this[nameof(ExportFolder)];
-        set => this[nameof(ExportFolder)] = value;
+        WriteIndented = true
+    };
+
+    private static string SettingsFile => Path.Combine(AppContext.BaseDirectory, "HaAutomationExporter.settings.json");
+
+    public static PortableSettings Load()
+    {
+        if (!File.Exists(SettingsFile))
+        {
+            return new PortableSettings(string.Empty);
+        }
+
+        try
+        {
+            var json = File.ReadAllText(SettingsFile, Encoding.UTF8);
+            return JsonSerializer.Deserialize<PortableSettings>(json, JsonOptions) ?? new PortableSettings(string.Empty);
+        }
+        catch
+        {
+            return new PortableSettings(string.Empty);
+        }
+    }
+
+    public static void Save(PortableSettings settings)
+    {
+        var json = JsonSerializer.Serialize(settings, JsonOptions);
+        File.WriteAllText(SettingsFile, json + Environment.NewLine, new UTF8Encoding(false));
     }
 }
 
