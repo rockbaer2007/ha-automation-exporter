@@ -2,7 +2,8 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
+    <ApplicationIcon>assets\ha-automation-exporter.ico</ApplicationIcon>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

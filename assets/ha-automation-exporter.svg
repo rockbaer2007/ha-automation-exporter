@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Home Assistant Automation Exporter">
+  <defs>
+    <linearGradient id="bg" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#118ab2"/>
+      <stop offset="0.55" stop-color="#2a9d8f"/>
+      <stop offset="1" stop-color="#1d3557"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="72" y1="72" x2="184" y2="184" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dff7f2"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="48" fill="url(#bg)"/>
+  <path d="M64 114 128 62l64 52v74a14 14 0 0 1-14 14h-36v-54h-28v54H78a14 14 0 0 1-14-14z" fill="url(#panel)"/>
+  <path d="M50 118 128 54l78 64" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M74 121 128 77l54 44v62a10 10 0 0 1-10 10h-26v-54h-36v54H84a10 10 0 0 1-10-10z" fill="url(#panel)"/>
+  <circle cx="128" cy="139" r="16" fill="#1d3557"/>
+  <path d="M128 155v22" stroke="#1d3557" stroke-width="10" stroke-linecap="round"/>
+  <path d="M78 102h100" stroke="#1d3557" stroke-width="10" stroke-linecap="round" opacity="0.2"/>
+  <path d="M172 158h32m0 0-16-16m16 16-16 16" fill="none" stroke="#ffd166" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M55 196h84" stroke="#ffd166" stroke-width="14" stroke-linecap="round"/>
+</svg>

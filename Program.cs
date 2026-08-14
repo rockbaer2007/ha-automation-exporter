@@ -25,6 +25,7 @@ internal sealed class ExporterForm : Form
     private readonly TextBox outputTextBox = new();
     private readonly DataGridView automationGrid = new();
     private readonly Label statusLabel = new();
+    private readonly Button detailsButton = new();
     private readonly Button exportButton = new();
     private List<AutomationEntry> automations = [];
 
@@ -75,9 +76,10 @@ internal sealed class ExporterForm : Form
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
-            ColumnCount = 5,
+            ColumnCount = 6,
             Padding = new Padding(0, 10, 0, 0)
         };
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -94,6 +96,11 @@ internal sealed class ExporterForm : Form
         var selectNoneButton = new Button { Text = "Keine auswählen", AutoSize = true };
         selectNoneButton.Click += (_, _) => SetAllChecked(false);
 
+        detailsButton.Text = "Details";
+        detailsButton.AutoSize = true;
+        detailsButton.Enabled = false;
+        detailsButton.Click += (_, _) => ShowSelectedAutomationDetails();
+
         exportButton.Text = "Ausgewählte exportieren";
         exportButton.AutoSize = true;
         exportButton.Enabled = false;
@@ -104,9 +111,10 @@ internal sealed class ExporterForm : Form
 
         footer.Controls.Add(loadButton, 0, 0);
         footer.Controls.Add(selectAllButton, 1, 0);
-        footer.Controls.Add(statusLabel, 2, 0);
-        footer.Controls.Add(selectNoneButton, 3, 0);
-        footer.Controls.Add(exportButton, 4, 0);
+        footer.Controls.Add(detailsButton, 2, 0);
+        footer.Controls.Add(statusLabel, 3, 0);
+        footer.Controls.Add(selectNoneButton, 4, 0);
+        footer.Controls.Add(exportButton, 5, 0);
 
         if (!string.IsNullOrWhiteSpace(sourceTextBox.Text))
         {
@@ -175,6 +183,14 @@ internal sealed class ExporterForm : Form
         automationGrid.MultiSelect = false;
         automationGrid.RowHeadersVisible = false;
         automationGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        automationGrid.CellDoubleClick += (_, args) =>
+        {
+            if (args.RowIndex >= 0)
+            {
+                ShowSelectedAutomationDetails();
+            }
+        };
+        automationGrid.SelectionChanged += (_, _) => UpdateDetailsButtonState();
 
         automationGrid.Columns.Add(new DataGridViewCheckBoxColumn
         {
@@ -267,14 +283,33 @@ internal sealed class ExporterForm : Form
             }
 
             exportButton.Enabled = automations.Count > 0;
+            UpdateDetailsButtonState();
             statusLabel.Text = $"{automations.Count} Automation(en) geladen.";
         }
         catch (Exception exception)
         {
             exportButton.Enabled = false;
+            detailsButton.Enabled = false;
             statusLabel.Text = "Laden fehlgeschlagen.";
             MessageBox.Show(this, exception.Message, "Fehler beim Laden", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    private void UpdateDetailsButtonState()
+    {
+        detailsButton.Enabled = automationGrid.CurrentRow?.Tag is AutomationEntry;
+    }
+
+    private void ShowSelectedAutomationDetails()
+    {
+        if (automationGrid.CurrentRow?.Tag is not AutomationEntry automation)
+        {
+            MessageBox.Show(this, "Bitte zuerst eine Automation auswählen.", "Keine Automation ausgewählt", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        using var dialog = new AutomationDetailsDialog(automation);
+        dialog.ShowDialog(this);
     }
 
     private void SetAllChecked(bool isChecked)
@@ -374,8 +409,161 @@ internal sealed record PortableSettings(string ExportFolder)
     }
 }
 
+internal sealed class AutomationDetailsDialog : Form
+{
+    public AutomationDetailsDialog(AutomationEntry automation)
+    {
+        Text = $"Automation: {automation.Alias}";
+        StartPosition = FormStartPosition.CenterParent;
+        MinimumSize = new Size(760, 520);
+        Size = new Size(900, 640);
+
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Padding = new Padding(12)
+        };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        Controls.Add(root);
+
+        var title = new Label
+        {
+            Text = string.IsNullOrWhiteSpace(automation.Id)
+                ? automation.Alias
+                : $"{automation.Alias} ({automation.Id})",
+            AutoSize = true,
+            Font = new Font(Font, FontStyle.Bold),
+            Padding = new Padding(0, 0, 0, 8)
+        };
+        root.Controls.Add(title, 0, 0);
+
+        var tabs = new TabControl { Dock = DockStyle.Fill };
+        root.Controls.Add(tabs, 0, 1);
+
+        tabs.TabPages.Add(CreateEntitiesTab(automation));
+        tabs.TabPages.Add(CreateYamlTab(automation));
+    }
+
+    private static TabPage CreateEntitiesTab(AutomationEntry automation)
+    {
+        var tab = new TabPage("Entitäten");
+        var entities = AutomationExporter.ExtractEntities(automation).ToList();
+
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Padding = new Padding(8)
+        };
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        tab.Controls.Add(root);
+
+        var grid = new DataGridView
+        {
+            Dock = DockStyle.Fill,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            AllowUserToResizeRows = false,
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            BackgroundColor = SystemColors.Window,
+            BorderStyle = BorderStyle.FixedSingle,
+            MultiSelect = false,
+            ReadOnly = true,
+            RowHeadersVisible = false,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect
+        };
+
+        grid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            HeaderText = "Entität",
+            FillWeight = 46
+        });
+        grid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            HeaderText = "Quelle",
+            FillWeight = 20
+        });
+        grid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            HeaderText = "Zeile",
+            FillWeight = 10
+        });
+        grid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            HeaderText = "Kontext",
+            FillWeight = 60
+        });
+
+        foreach (var entity in entities)
+        {
+            grid.Rows.Add(entity.EntityId, entity.Source, entity.LineNumber, entity.Context);
+        }
+
+        var footer = new Label
+        {
+            AutoSize = true,
+            Padding = new Padding(0, 8, 0, 0),
+            Text = entities.Count == 0
+                ? "Keine Entitäten erkannt."
+                : $"{entities.Count} Entität(en) erkannt. Template-Treffer sind heuristisch erkannt."
+        };
+
+        root.Controls.Add(grid, 0, 0);
+        root.Controls.Add(footer, 0, 1);
+        return tab;
+    }
+
+    private static TabPage CreateYamlTab(AutomationEntry automation)
+    {
+        var tab = new TabPage("YAML");
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Padding = new Padding(8)
+        };
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        tab.Controls.Add(root);
+
+        var yamlTextBox = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Multiline = true,
+            ReadOnly = true,
+            ScrollBars = ScrollBars.Both,
+            WordWrap = false,
+            Font = new Font(FontFamily.GenericMonospace, 9F),
+            Text = automation.Yaml.TrimEnd()
+        };
+
+        var copyButton = new Button
+        {
+            Text = "YAML kopieren",
+            AutoSize = true,
+            Anchor = AnchorStyles.Right,
+            Margin = new Padding(0, 8, 0, 0)
+        };
+        copyButton.Click += (_, _) => Clipboard.SetText(yamlTextBox.Text);
+
+        root.Controls.Add(yamlTextBox, 0, 0);
+        root.Controls.Add(copyButton, 0, 1);
+        return tab;
+    }
+}
+
 internal static class AutomationExporter
 {
+    private static readonly Regex EntityIdRegex = new(
+        @"\b(?:alarm_control_panel|automation|binary_sensor|button|calendar|camera|climate|cover|device_tracker|event|fan|humidifier|input_boolean|input_button|input_datetime|input_number|input_select|input_text|light|lock|media_player|number|person|remote|scene|script|select|sensor|siren|sun|switch|text|timer|update|vacuum|valve|water_heater|weather|zone)\.[A-Za-z0-9_]+\b",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
     public static int RunCli(string sourcePath, string outputPath)
     {
         try
@@ -465,6 +653,40 @@ internal static class AutomationExporter
 
             File.WriteAllText(targetFile, automation.Yaml.TrimEnd() + Environment.NewLine, new UTF8Encoding(false));
             yield return new AutomationExport(exported, fileName, targetFile);
+        }
+    }
+
+    public static IEnumerable<AutomationEntityReference> ExtractEntities(AutomationEntry automation)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var lines = automation.Yaml.ReplaceLineEndings("\n").Split('\n');
+
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var line = lines[index];
+            var isTemplateLike =
+                line.Contains("{{", StringComparison.Ordinal) ||
+                line.Contains("{%", StringComparison.Ordinal) ||
+                line.Contains("states(", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("state_attr(", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("is_state(", StringComparison.OrdinalIgnoreCase);
+
+            foreach (Match match in EntityIdRegex.Matches(line))
+            {
+                var entityId = match.Value;
+                var key = $"{entityId}|{index + 1}";
+
+                if (!seen.Add(key))
+                {
+                    continue;
+                }
+
+                yield return new AutomationEntityReference(
+                    EntityId: entityId,
+                    Source: isTemplateLike ? "Template" : "YAML",
+                    LineNumber: index + 1,
+                    Context: line.Trim());
+            }
         }
     }
 
@@ -607,5 +829,7 @@ internal static class AutomationExporter
 }
 
 internal sealed record AutomationEntry(int Index, string Id, string Alias, string FileName, string Yaml);
+
+internal sealed record AutomationEntityReference(string EntityId, string Source, int LineNumber, string Context);
 
 internal sealed record AutomationExport(int Index, string FileName, string TargetFile);
