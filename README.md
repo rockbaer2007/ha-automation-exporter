@@ -9,7 +9,6 @@ Windows tool to export Home Assistant `automations.yaml` entries into separate Y
 - Review all automations in a table with checkboxes.
 - Export selected automations as individual `.yaml` files.
 - Persist the export folder in the per-user `.NET` `user.config`.
-- Continue to support full export from the command line.
 
 ## Run
 
@@ -17,11 +16,10 @@ Windows tool to export Home Assistant `automations.yaml` entries into separate Y
 dotnet run --project .\HaAutomationExporter.csproj
 ```
 
-## Full Command-Line Export
+## Command-Line Notes
 
-```powershell
-dotnet run --project .\HaAutomationExporter.csproj -- C:\Users\rockb\Downloads\automations.yaml C:\Users\rockb\Downloads\automations-export
-```
+The project is built as `WinExe` so the app starts without a console window. The exporter logic still accepts
+command-line arguments internally, but normal use is the Windows selection window.
 
 ## Requirements
 
