@@ -50,6 +50,7 @@ internal sealed class ExporterForm : Form
         I18n.Use(settings.Language);
 
         Text = GetWindowTitle();
+        Icon = AppIcon.Load();
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(920, 560);
         Size = new Size(980, 680);
@@ -522,6 +523,7 @@ internal sealed class SettingsDialog : Form
         Settings = settings;
 
         Text = I18n.T("SettingsTitle");
+        Icon = AppIcon.Load();
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -698,6 +700,21 @@ internal static class AppVersion
 
         var metadataIndex = version.IndexOf('+', StringComparison.Ordinal);
         return metadataIndex >= 0 ? version[..metadataIndex] : version;
+    }
+}
+
+internal static class AppIcon
+{
+    public static Icon? Load()
+    {
+        try
+        {
+            return Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        }
+        catch
+        {
+            return null;
+        }
     }
 }
 
@@ -1216,6 +1233,7 @@ internal sealed class AutomationDetailsDialog : Form
     public AutomationDetailsDialog(AutomationEntry automation)
     {
         Text = I18n.Format("DetailsTitle", automation.Alias);
+        Icon = AppIcon.Load();
         StartPosition = FormStartPosition.CenterParent;
         MinimumSize = new Size(760, 520);
         Size = new Size(900, 640);
