@@ -48,7 +48,7 @@ internal sealed class ExporterForm : Form
         Text = I18n.T("AppTitle");
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(920, 560);
-        Size = new Size(1060, 680);
+        Size = new Size(980, 680);
 
         var defaultSource = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -89,7 +89,8 @@ internal sealed class ExporterForm : Form
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
-            ColumnCount = 8,
+            ColumnCount = 6,
+            RowCount = 2,
             Padding = new Padding(0, 10, 0, 0)
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -98,8 +99,8 @@ internal sealed class ExporterForm : Form
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        footer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        footer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.Controls.Add(footer, 0, 3);
 
         loadButton.AutoSize = true;
@@ -133,9 +134,10 @@ internal sealed class ExporterForm : Form
         footer.Controls.Add(settingsButton, 2, 0);
         footer.Controls.Add(detailsButton, 3, 0);
         footer.Controls.Add(statusLabel, 4, 0);
-        footer.Controls.Add(selectNoneButton, 5, 0);
-        footer.Controls.Add(exportButton, 6, 0);
-        footer.Controls.Add(openExportFolderButton, 7, 0);
+        footer.SetColumnSpan(statusLabel, 2);
+        footer.Controls.Add(selectNoneButton, 0, 1);
+        footer.Controls.Add(exportButton, 1, 1);
+        footer.Controls.Add(openExportFolderButton, 2, 1);
 
         ApplyUiText();
 
@@ -736,7 +738,7 @@ internal static class I18n
             ["SearchLabel"] = "Search",
             ["SearchPlaceholder"] = "Search alias, ID, file name or YAML, e.g. pool",
             ["ClearFilterButton"] = "Clear",
-            ["OpenExportFolderButton"] = "Open export in Explorer",
+            ["OpenExportFolderButton"] = "Open Explorer",
             ["AliasColumn"] = "Alias",
             ["IdColumn"] = "ID",
             ["FileNameColumn"] = "File name",
@@ -810,7 +812,7 @@ internal static class I18n
             ["SearchLabel"] = "Suche",
             ["SearchPlaceholder"] = "Alias, ID, Dateiname oder YAML durchsuchen, z.B. pool",
             ["ClearFilterButton"] = "Zurücksetzen",
-            ["OpenExportFolderButton"] = "Export im Explorer öffnen",
+            ["OpenExportFolderButton"] = "Explorer öffnen",
             ["AliasColumn"] = "Alias",
             ["IdColumn"] = "ID",
             ["FileNameColumn"] = "Dateiname",
