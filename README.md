@@ -7,6 +7,7 @@ Windows tool to export Home Assistant `automations.yaml` entries into separate Y
 ## Features
 
 - Open a Windows selection window without command-line arguments.
+- Show the application version in the window title.
 - Select a Home Assistant `automations.yaml` file.
 - Search automations by alias, ID, generated file name or YAML content.
 - Review all automations in a table with checkboxes.

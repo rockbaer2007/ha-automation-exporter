@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Globalization;
 using System.Diagnostics;
+using System.Reflection;
 using System.Windows.Forms;
 
 internal static class Program
@@ -24,6 +25,7 @@ internal static class Program
 internal sealed class ExporterForm : Form
 {
     private static readonly Size FooterButtonSize = new(168, 30);
+    private static readonly string DisplayVersion = AppVersion.GetDisplayVersion();
 
     private readonly TextBox sourceTextBox = new();
     private readonly TextBox filterTextBox = new();
@@ -47,7 +49,7 @@ internal sealed class ExporterForm : Form
     {
         I18n.Use(settings.Language);
 
-        Text = I18n.T("AppTitle");
+        Text = GetWindowTitle();
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(920, 560);
         Size = new Size(980, 680);
@@ -260,7 +262,7 @@ internal sealed class ExporterForm : Form
 
     private void ApplyUiText()
     {
-        Text = I18n.T("AppTitle");
+        Text = GetWindowTitle();
         sourceBrowseButton.Text = I18n.T("ChooseFileButton");
         loadButton.Text = I18n.T("LoadButton");
         selectAllButton.Text = I18n.T("SelectAllButton");
@@ -276,6 +278,11 @@ internal sealed class ExporterForm : Form
         automationGrid.Columns[1].HeaderText = I18n.T("AliasColumn");
         automationGrid.Columns[2].HeaderText = I18n.T("IdColumn");
         automationGrid.Columns[3].HeaderText = I18n.T("FileNameColumn");
+    }
+
+    private static string GetWindowTitle()
+    {
+        return I18n.Format("AppTitleWithVersion", I18n.T("AppTitle"), DisplayVersion);
     }
 
     private void ShowSettingsDialog()
@@ -671,6 +678,29 @@ internal sealed class SettingsDialog : Form
     }
 }
 
+internal static class AppVersion
+{
+    public static string GetDisplayVersion()
+    {
+        var version = Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            version = Assembly.GetExecutingAssembly().GetName().Version?.ToString();
+        }
+
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            return "0.0.0";
+        }
+
+        var metadataIndex = version.IndexOf('+', StringComparison.Ordinal);
+        return metadataIndex >= 0 ? version[..metadataIndex] : version;
+    }
+}
+
 internal sealed record PortableSettings(string ExportFolder = "", string Language = I18n.SystemLanguageKey)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -731,6 +761,7 @@ internal static class I18n
             ["LanguagePolish"] = "Polish",
             ["LanguageRussian"] = "Russian",
             ["AppTitle"] = "Export Home Assistant Automations",
+            ["AppTitleWithVersion"] = "{0} v{1}",
             ["SourceFileLabel"] = "automations.yaml",
             ["ExportFolderLabel"] = "Export folder",
             ["LanguageLabel"] = "Language",
@@ -805,6 +836,7 @@ internal static class I18n
             ["LanguagePolish"] = "Polnisch",
             ["LanguageRussian"] = "Russisch",
             ["AppTitle"] = "Home Assistant Automationen exportieren",
+            ["AppTitleWithVersion"] = "{0} v{1}",
             ["SourceFileLabel"] = "automations.yaml",
             ["ExportFolderLabel"] = "Export-Ordner",
             ["LanguageLabel"] = "Sprache",
@@ -879,6 +911,7 @@ internal static class I18n
             ["LanguagePolish"] = "Polonais",
             ["LanguageRussian"] = "Russe",
             ["AppTitle"] = "Exporter les automatisations Home Assistant",
+            ["AppTitleWithVersion"] = "{0} v{1}",
             ["SourceFileLabel"] = "automations.yaml",
             ["ExportFolderLabel"] = "Dossier export",
             ["LanguageLabel"] = "Langue",
@@ -943,6 +976,7 @@ internal static class I18n
             ["LanguagePolish"] = "Polaco",
             ["LanguageRussian"] = "Ruso",
             ["AppTitle"] = "Exportar automatizaciones de Home Assistant",
+            ["AppTitleWithVersion"] = "{0} v{1}",
             ["SourceFileLabel"] = "automations.yaml",
             ["ExportFolderLabel"] = "Carpeta export",
             ["LanguageLabel"] = "Idioma",
@@ -1007,6 +1041,7 @@ internal static class I18n
             ["LanguagePolish"] = "Polski",
             ["LanguageRussian"] = "Rosyjski",
             ["AppTitle"] = "Eksport automatyzacji Home Assistant",
+            ["AppTitleWithVersion"] = "{0} v{1}",
             ["SourceFileLabel"] = "automations.yaml",
             ["ExportFolderLabel"] = "Folder eksportu",
             ["LanguageLabel"] = "Język",
@@ -1071,6 +1106,7 @@ internal static class I18n
             ["LanguagePolish"] = "Польский",
             ["LanguageRussian"] = "Русский",
             ["AppTitle"] = "Экспорт автоматизаций Home Assistant",
+            ["AppTitleWithVersion"] = "{0} v{1}",
             ["SourceFileLabel"] = "automations.yaml",
             ["ExportFolderLabel"] = "Папка экспорта",
             ["LanguageLabel"] = "Язык",
