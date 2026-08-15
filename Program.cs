@@ -23,6 +23,8 @@ internal static class Program
 
 internal sealed class ExporterForm : Form
 {
+    private static readonly Size FooterButtonSize = new(168, 30);
+
     private readonly TextBox sourceTextBox = new();
     private readonly TextBox filterTextBox = new();
     private readonly Label filterLabel = new();
@@ -103,27 +105,27 @@ internal sealed class ExporterForm : Form
         footer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.Controls.Add(footer, 0, 3);
 
-        loadButton.AutoSize = true;
+        ConfigureFooterButton(loadButton);
         loadButton.Click += (_, _) => LoadAutomations();
 
-        selectAllButton.AutoSize = true;
+        ConfigureFooterButton(selectAllButton);
         selectAllButton.Click += (_, _) => SetAllChecked(true);
 
-        settingsButton.AutoSize = true;
+        ConfigureFooterButton(settingsButton);
         settingsButton.Click += (_, _) => ShowSettingsDialog();
 
-        selectNoneButton.AutoSize = true;
+        ConfigureFooterButton(selectNoneButton);
         selectNoneButton.Click += (_, _) => SetAllChecked(false);
 
-        detailsButton.AutoSize = true;
+        ConfigureFooterButton(detailsButton);
         detailsButton.Enabled = false;
         detailsButton.Click += (_, _) => ShowSelectedAutomationDetails();
 
-        exportButton.AutoSize = true;
+        ConfigureFooterButton(exportButton);
         exportButton.Enabled = false;
         exportButton.Click += (_, _) => ExportSelected();
 
-        openExportFolderButton.AutoSize = true;
+        ConfigureFooterButton(openExportFolderButton);
         openExportFolderButton.Click += (_, _) => OpenExportFolder();
 
         statusLabel.AutoSize = true;
@@ -145,6 +147,15 @@ internal sealed class ExporterForm : Form
         {
             Load += (_, _) => LoadAutomations();
         }
+    }
+
+    private static void ConfigureFooterButton(Button button)
+    {
+        button.AutoSize = false;
+        button.Size = FooterButtonSize;
+        button.MinimumSize = FooterButtonSize;
+        button.MaximumSize = FooterButtonSize;
+        button.TextAlign = ContentAlignment.MiddleCenter;
     }
 
     private Control CreateSourcePathRow()
